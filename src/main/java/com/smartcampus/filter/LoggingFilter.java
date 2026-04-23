@@ -1,102 +1,77 @@
 package com.smartcampus.filter;
 
-import jakarta.ws.rs.container.ContainerRequestContext;
-import jakarta.ws.rs.container.ContainerRequestFilter;
-import jakarta.ws.rs.container.ContainerResponseContext;
-import jakarta.ws.rs.container.ContainerResponseFilter;
-import jakarta.ws.rs.ext.Provider;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerRequestFilter;
+import javax.ws.rs.container.ContainerResponseContext;
+import javax.ws.rs.container.ContainerResponseFilter;
+import javax.ws.rs.ext.Provider;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Logging filter for HTTP requests and responses.
+ * Logging Filter - Cross-cutting concern for request/response logging
+ * Implements ContainerRequestFilter and ContainerResponseFilter for complete
+ * lifecycle tracking
  *
- * This class acts as a cross-cutting component that intercepts all incoming
- * requests and outgoing responses in the application.
- *
- * Purpose:
- * - Capture request metadata before processing
- * - Measure request processing time
- * - Log response status and performance metrics
- * - Provide consistent logging across all API endpoints
- *
- * Benefits of using a filter instead of manual logging in controllers:
- * - Centralized logging logic (no duplication across endpoints)
- * - Consistent log format for all requests
- * - Easier maintenance and updates
- * - Automatic performance tracking per request
- * - Improved traceability between request and response lifecycle
+ * Benefits of filter-based logging vs manual Logger.info() in methods:
+ * 1. Single point of change - update format once, applies everywhere
+ * 2. No code duplication - logs all endpoints automatically
+ * 3. Business logic stays clean - no logging noise in resource methods
+ * 4. Performance monitoring - duration tracking built-in
+ * 5. Request correlation - can add correlation IDs for tracing
+ * 6. Consistent format - ensures uniform logging across entire API
  */
 @Provider
 public class LoggingFilter implements ContainerRequestFilter, ContainerResponseFilter {
-
-    // Logger instance for this class
-    private static final Logger LOG = Logger.getLogger(LoggingFilter.class.getName());
-
-    // Key used to store request start time inside request context
-    private static final String TIMING_KEY = "req.timing.start";
+    private static final Logger LOGGER = Logger.getLogger(LoggingFilter.class.getName());
+    private static final String REQUEST_START_TIME = "request-start-time";
 
     /**
-     * Intercepts incoming HTTP requests before they reach the resource layer.
-     *
-     * Responsibilities:
-     * - Capture request start timestamp
-     * - Extract request method, URI, and content type
-     * - Log basic request details for monitoring and debugging
+     * Logs incoming HTTP request
+     * CRITICAL: Sets request-start-time property for response filter to calculate
+     * duration
      */
     @Override
-    public void filter(ContainerRequestContext req) throws IOException {
+    public void filter(ContainerRequestContext requestContext) throws IOException {
+        // ✅ CRITICAL FIX: Set property FIRST before response filter accesses it
+        long startTime = System.currentTimeMillis();
+        requestContext.setProperty(REQUEST_START_TIME, startTime);
 
-        // Record request start time for performance calculation
-        long ts = System.currentTimeMillis();
-        req.setProperty(TIMING_KEY, ts);
+        String method = requestContext.getMethod();
+        String uri = requestContext.getUriInfo().getRequestUri().toString();
+        String contentType = requestContext.getHeaderString("Content-Type");
 
-        // Extract request metadata
-        String verb = req.getMethod();
-        String path = req.getUriInfo().getRequestUri().toString();
-        String mediaType = req.getHeaderString("Content-Type");
-
-        // Log incoming request details
-        LOG.log(Level.INFO, String.format(
-            "[REQ] %s %s | Media=%s | TS=%d",
-            verb, path, mediaType != null ? mediaType : "none", ts));
+        LOGGER.log(Level.INFO, String.format(
+                "[REQUEST] Method: %s | URI: %s | Content-Type: %s | Timestamp: %d",
+                method, uri, contentType != null ? contentType : "N/A", startTime));
     }
 
     /**
-     * Intercepts outgoing HTTP responses after resource processing is complete.
-     *
-     * Responsibilities:
-     * - Retrieve request start time
-     * - Calculate total processing time
-     * - Log response status and execution duration
-     * - Assign log level based on response status code
+     * Logs outgoing HTTP response
+     * Calculates request duration and logs with status code for observability
      */
     @Override
-    public void filter(ContainerRequestContext req, ContainerResponseContext res)
+    public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext)
             throws IOException {
+        // ✅ Safe to retrieve - property was set in request filter
+        Object startTimeObj = requestContext.getProperty(REQUEST_START_TIME);
+        long duration = 0;
 
-        // Retrieve stored start timestamp
-        Object tsObj = req.getProperty(TIMING_KEY);
-        long elapsed = 0;
-
-        // Calculate request processing time if timestamp exists
-        if (tsObj != null) {
-            elapsed = System.currentTimeMillis() - (long) tsObj;
+        if (startTimeObj != null) {
+            long startTime = (long) startTimeObj;
+            duration = System.currentTimeMillis() - startTime;
         }
 
-        // Extract request/response details
-        String verb = req.getMethod();
-        String path = req.getUriInfo().getRequestUri().toString();
-        int code = res.getStatus();
+        int status = responseContext.getStatus();
+        String method = requestContext.getMethod();
+        String uri = requestContext.getUriInfo().getRequestUri().toString();
 
-        // Determine log severity based on HTTP status code
-        Level lv = code >= 500 ? Level.SEVERE : 
-                   code >= 400 ? Level.WARNING : Level.INFO;
+        // Log with appropriate level based on status
+        Level logLevel = status >= 500 ? Level.SEVERE : status >= 400 ? Level.WARNING : Level.INFO;
 
-        // Log response details with execution time
-        LOG.log(lv, String.format(
-            "[RES] %s %s | Code=%d | Elapsed=%dms",
-            verb, path, code, elapsed));
+        LOGGER.log(logLevel, String.format(
+                "[RESPONSE] Method: %s | URI: %s | Status: %d | Duration: %dms",
+                method, uri, status, duration));
     }
 }

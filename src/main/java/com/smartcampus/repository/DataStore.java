@@ -7,51 +7,32 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Central in-memory data repository for the Smart Campus system.
+ * Repository Pattern - DataStore
+ * Thread-safe singleton managing all in-memory data persistence
  *
- * This class acts as a simple persistence layer using the Singleton pattern.
- * It stores all application data in memory, including rooms, sensors,
- * and sensor readings.
+ * CRITICAL: Uses ConcurrentHashMap to handle concurrent access across multiple
+ * request threads.
+ * This ensures thread safety when handling concurrent API requests without
+ * explicit locking.
  *
- * Key characteristics:
- * - Singleton ensures a single shared data store across the application
- * - ConcurrentHashMap provides thread-safe access for concurrent requests
- * - No external database is used; data is stored in memory only
- *
- * Architecture context:
- * - Each HTTP request creates a new resource instance (JAX-RS behavior)
- * - All resources interact with this single shared DataStore instance
- * - Thread-safe collections prevent race conditions during concurrent access
+ * Lifecycle:
+ * - Request-scoped resources are instantiated per-request
+ * - All resources access this SHARED singleton DataStore
+ * - ConcurrentHashMap provides atomic operations for data consistency
  */
 public class DataStore {
+    private static DataStore instance;
+    private final Map<String, Room> rooms;
+    private final Map<String, Sensor> sensors;
+    private final Map<String, List<SensorReading>> sensorReadings;
 
-    // Singleton instance (volatile ensures visibility across threads)
-    private static volatile DataStore instance;
-
-    // Stores all room entities indexed by room ID
-    private final Map<String, Room> roomRegistry;
-
-    // Stores all sensor entities indexed by sensor ID
-    private final Map<String, Sensor> sensorRegistry;
-
-    // Stores historical sensor readings per sensor ID
-    private final Map<String, List<SensorReading>> readingHistory;
-
-    /**
-     * Private constructor to enforce Singleton pattern.
-     * Initializes in-memory collections and seed data.
-     */
     private DataStore() {
-        this.roomRegistry = new ConcurrentHashMap<>();
-        this.sensorRegistry = new ConcurrentHashMap<>();
-        this.readingHistory = new ConcurrentHashMap<>();
-        initializeSystemData();
+        this.rooms = new ConcurrentHashMap<>();
+        this.sensors = new ConcurrentHashMap<>();
+        this.sensorReadings = new ConcurrentHashMap<>();
+        initializeDefaultData();
     }
 
-    /**
-     * Returns the single instance of DataStore.
-     * Synchronized to ensure thread-safe lazy initialization.
-     */
     public static synchronized DataStore getInstance() {
         if (instance == null) {
             instance = new DataStore();
@@ -60,157 +41,134 @@ public class DataStore {
     }
 
     /**
-     * Initializes sample system data for rooms, sensors, and relationships.
-     *
-     * This acts as bootstrap data for the application at startup.
+     * Initialize default data for demonstration
      */
-    private void initializeSystemData() {
+    private void initializeDefaultData() {
+        // Initialize sample rooms
+        rooms.put("LIB-301", new Room("LIB-301", "Library Quiet Study", 25));
+        rooms.put("LAB-102", new Room("LAB-102", "Computer Lab", 50));
+        rooms.put("CONF-501", new Room("CONF-501", "Conference Room", 100));
 
-        // Initialize room data (campus locations)
-        roomRegistry.put("ENG-201", new Room("ENG-201", "Engineering Lab Block A", 30));
-        roomRegistry.put("SCI-104", new Room("SCI-104", "Science Lecture Hall", 100));
-        roomRegistry.put("ADM-501", new Room("ADM-501", "Administration Meeting Room", 20));
+        // Initialize sample sensors
+        sensors.put("TEMP-001", new Sensor("TEMP-001", "Temperature", "ACTIVE", 22.5, "LIB-301"));
+        sensors.put("CO2-001", new Sensor("CO2-001", "CO2", "ACTIVE", 450.0, "LIB-301"));
+        sensors.put("OCC-001", new Sensor("OCC-001", "Occupancy", "ACTIVE", 12.0, "LAB-102"));
+        sensors.put("TEMP-002", new Sensor("TEMP-002", "Temperature", "MAINTENANCE", 21.0, "CONF-501"));
 
-        // Initialize sensors assigned to rooms
-        sensorRegistry.put("HUM-101", new Sensor("HUM-101", "Humidity", "ACTIVE", 55.0, "ENG-201"));
-        sensorRegistry.put("LIGHT-101", new Sensor("LIGHT-101", "Lighting", "ACTIVE", 800.0, "ENG-201"));
-        sensorRegistry.put("TEMP-201", new Sensor("TEMP-201", "Temperature", "ACTIVE", 21.5, "SCI-104"));
-        sensorRegistry.put("SOUND-101", new Sensor("SOUND-101", "Noise", "MAINTENANCE", 65.0, "ADM-501"));
+        // Add sensor IDs to rooms
+        rooms.get("LIB-301").getSensorIds().addAll(Arrays.asList("TEMP-001", "CO2-001"));
+        rooms.get("LAB-102").getSensorIds().add("OCC-001");
+        rooms.get("CONF-501").getSensorIds().add("TEMP-002");
 
-        // Establish room-to-sensor relationships
-        roomRegistry.get("ENG-201").getSensorIds().addAll(Arrays.asList("HUM-101", "LIGHT-101"));
-        roomRegistry.get("SCI-104").getSensorIds().add("TEMP-201");
-        roomRegistry.get("ADM-501").getSensorIds().add("SOUND-101");
+        // Initialize sample readings
+        sensorReadings.put("TEMP-001", new ArrayList<>());
+        sensorReadings.put("CO2-001", new ArrayList<>());
+        sensorReadings.put("OCC-001", new ArrayList<>());
+        sensorReadings.put("TEMP-002", new ArrayList<>());
 
-        // Initialize reading history containers
-        readingHistory.put("HUM-101", new ArrayList<>());
-        readingHistory.put("LIGHT-101", new ArrayList<>());
-        readingHistory.put("TEMP-201", new ArrayList<>());
-        readingHistory.put("SOUND-101", new ArrayList<>());
-
-        // Seed initial reading example
-        SensorReading initialReading = new SensorReading(55.0);
-        readingHistory.get("HUM-101").add(initialReading);
+        SensorReading tempReading = new SensorReading(22.5);
+        sensorReadings.get("TEMP-001").add(tempReading);
     }
 
-    // ================= ROOM OPERATIONS =================
+    // ===== ROOM OPERATIONS =====
 
-    // Retrieve a room by ID
-    public Room retrieveRoom(String roomId) {
-        return roomRegistry.get(roomId);
+    public Room getRoom(String roomId) {
+        return rooms.get(roomId);
     }
 
-    // Retrieve all rooms
-    public Collection<Room> fetchAllRooms() {
-        return roomRegistry.values();
+    public Collection<Room> getAllRooms() {
+        return rooms.values();
     }
 
-    // Save or update a room
-    public Room saveRoom(Room room) {
-        roomRegistry.put(room.getId(), room);
+    public Room addRoom(Room room) {
+        rooms.put(room.getId(), room);
         return room;
     }
 
-    // Remove a room by ID
-    public boolean removeRoom(String roomId) {
-        return roomRegistry.remove(roomId) != null;
+    public boolean deleteRoom(String roomId) {
+        return rooms.remove(roomId) != null;
     }
 
-    // Check if a room exists
     public boolean roomExists(String roomId) {
-        return roomRegistry.containsKey(roomId);
+        return rooms.containsKey(roomId);
     }
 
-    // ================= SENSOR OPERATIONS =================
+    // ===== SENSOR OPERATIONS =====
 
-    // Retrieve a sensor by ID
-    public Sensor retrieveSensor(String sensorId) {
-        return sensorRegistry.get(sensorId);
+    public Sensor getSensor(String sensorId) {
+        return sensors.get(sensorId);
     }
 
-    // Retrieve all sensors
-    public Collection<Sensor> fetchAllSensors() {
-        return sensorRegistry.values();
+    public Collection<Sensor> getAllSensors() {
+        return sensors.values();
     }
 
-    // Find sensors by type (case-insensitive match)
-    public Collection<Sensor> findSensorsByType(String sensorType) {
-        List<Sensor> matches = new ArrayList<>();
-        for (Sensor sensor : sensorRegistry.values()) {
-            if (sensor.getType().equalsIgnoreCase(sensorType)) {
-                matches.add(sensor);
+    public Collection<Sensor> getSensorsByType(String type) {
+        List<Sensor> filtered = new ArrayList<>();
+        for (Sensor sensor : sensors.values()) {
+            if (sensor.getType().equalsIgnoreCase(type)) {
+                filtered.add(sensor);
             }
         }
-        return matches;
+        return filtered;
     }
 
-    // Save sensor and link it to its room
-    public Sensor saveSensor(Sensor sensor) {
-        sensorRegistry.put(sensor.getId(), sensor);
+    public Sensor addSensor(Sensor sensor) {
+        sensors.put(sensor.getId(), sensor);
 
-        Room room = roomRegistry.get(sensor.getRoomId());
+        // Add sensor ID to the room
+        Room room = rooms.get(sensor.getRoomId());
         if (room != null) {
             room.getSensorIds().add(sensor.getId());
         }
+
         return sensor;
     }
 
-    // Remove sensor and clean up references
-    public boolean removeSensor(String sensorId) {
-        Sensor sensor = sensorRegistry.remove(sensorId);
+    public boolean deleteSensor(String sensorId) {
+        Sensor sensor = sensors.remove(sensorId);
         if (sensor != null) {
-
-            Room room = roomRegistry.get(sensor.getRoomId());
+            Room room = rooms.get(sensor.getRoomId());
             if (room != null) {
                 room.getSensorIds().remove(sensorId);
             }
-
-            // Remove historical readings as well
-            readingHistory.remove(sensorId);
+            sensorReadings.remove(sensorId);
             return true;
         }
         return false;
     }
 
-    // Check sensor existence
     public boolean sensorExists(String sensorId) {
-        return sensorRegistry.containsKey(sensorId);
+        return sensors.containsKey(sensorId);
     }
 
-    // Update current sensor value
-    public void updateSensorCurrentValue(String sensorId, double newValue) {
-        Sensor sensor = sensorRegistry.get(sensorId);
+    public void updateSensorCurrentValue(String sensorId, double value) {
+        Sensor sensor = sensors.get(sensorId);
         if (sensor != null) {
-            sensor.setCurrentValue(newValue);
+            sensor.setCurrentValue(value);
         }
     }
 
-    // ================= SENSOR READINGS =================
+    // ===== SENSOR READING OPERATIONS =====
 
-    // Get reading history for a sensor
-    public List<SensorReading> fetchReadingHistory(String sensorId) {
-        return readingHistory.getOrDefault(sensorId, new ArrayList<>());
+    public List<SensorReading> getReadingsForSensor(String sensorId) {
+        return sensorReadings.getOrDefault(sensorId, new ArrayList<>());
     }
 
-    // Save a new sensor reading
-    public SensorReading saveReading(String sensorId, SensorReading reading) {
-        readingHistory
-            .computeIfAbsent(sensorId, k -> new ArrayList<>())
-            .add(reading);
+    public SensorReading addReading(String sensorId, SensorReading reading) {
+        sensorReadings.computeIfAbsent(sensorId, k -> new ArrayList<>()).add(reading);
         return reading;
     }
 
-    // ================= BUSINESS LOGIC QUERIES =================
+    // ===== BUSINESS LOGIC OPERATIONS =====
 
-    // Check if a room has at least one active sensor
-    public boolean roomHasActiveSensors(String roomId) {
-        Room room = roomRegistry.get(roomId);
+    public boolean hasActiveSensors(String roomId) {
+        Room room = rooms.get(roomId);
         if (room == null) {
             return false;
         }
-
         for (String sensorId : room.getSensorIds()) {
-            Sensor sensor = sensorRegistry.get(sensorId);
+            Sensor sensor = sensors.get(sensorId);
             if (sensor != null && "ACTIVE".equals(sensor.getStatus())) {
                 return true;
             }
@@ -218,20 +176,18 @@ public class DataStore {
         return false;
     }
 
-    // Count active sensors in a room
-    public int countActiveSensorsInRoom(String roomId) {
-        Room room = roomRegistry.get(roomId);
+    public int getActiveSensorCount(String roomId) {
+        Room room = rooms.get(roomId);
         if (room == null) {
             return 0;
         }
-
-        int counter = 0;
+        int count = 0;
         for (String sensorId : room.getSensorIds()) {
-            Sensor sensor = sensorRegistry.get(sensorId);
+            Sensor sensor = sensors.get(sensorId);
             if (sensor != null && "ACTIVE".equals(sensor.getStatus())) {
-                counter++;
+                count++;
             }
         }
-        return counter;
+        return count;
     }
 }

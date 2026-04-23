@@ -4,54 +4,26 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Represents a physical room within the smart campus system.
- *
- * This entity models core room information along with its association
- * to sensors installed within the room.
- *
- * Each room can contain multiple sensors, referenced by their IDs.
- *
- * Key responsibilities:
- * - Store basic room metadata (id, name, capacity)
- * - Maintain references to associated sensors
- * - Provide a simple model for room-sensor relationships
+ * Room Entity
+ * Represents a physical room in the campus
  */
 public class Room {
-
-    // Unique identifier for the room
     private String id;
-
-    // Human-readable name of the room
     private String name;
-
-    // Maximum occupancy capacity of the room
     private int capacity;
-
-    // List of sensor IDs associated with this room
     private List<String> sensorIds;
 
-    /**
-     * Default constructor initializes an empty sensor list.
-     */
     public Room() {
         this.sensorIds = new ArrayList<>();
     }
 
-    /**
-     * Parameterized constructor for creating a fully initialized room object.
-     *
-     * @param roomId unique room identifier
-     * @param roomName display name of the room
-     * @param maxCapacity maximum occupancy capacity
-     */
-    public Room(String roomId, String roomName, int maxCapacity) {
-        this.id = roomId;
-        this.name = roomName;
-        this.capacity = maxCapacity;
+    public Room(String id, String name, int capacity) {
+        this.id = id;
+        this.name = name;
+        this.capacity = capacity;
         this.sensorIds = new ArrayList<>();
     }
 
-    // Getter and setter for room ID
     public String getId() {
         return id;
     }
@@ -60,7 +32,6 @@ public class Room {
         this.id = id;
     }
 
-    // Getter and setter for room name
     public String getName() {
         return name;
     }
@@ -69,7 +40,6 @@ public class Room {
         this.name = name;
     }
 
-    // Getter and setter for room capacity
     public int getCapacity() {
         return capacity;
     }
@@ -78,7 +48,6 @@ public class Room {
         this.capacity = capacity;
     }
 
-    // Getter and setter for sensor ID list
     public List<String> getSensorIds() {
         return sensorIds;
     }
@@ -87,16 +56,13 @@ public class Room {
         this.sensorIds = sensorIds;
     }
 
-    /**
-     * Provides a readable string representation of the room object.
-     *
-     * Includes basic metadata and number of associated sensors.
-     */
     @Override
     public String toString() {
-        return String.format(
-            "Room[id=%s, name=%s, capacity=%d, sensors=%d]",
-            id, name, capacity, sensorIds.size()
-        );
+        return "Room{" +
+                "id='" + id + '\'' +
+                ", name='" + name + '\'' +
+                ", capacity=" + capacity +
+                ", sensorIds=" + sensorIds +
+                '}';
     }
 }

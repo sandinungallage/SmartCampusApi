@@ -3,210 +3,153 @@ package com.smartcampus.resource;
 import com.smartcampus.exception.LinkedResourceNotFoundException;
 import com.smartcampus.model.Sensor;
 import com.smartcampus.repository.DataStore;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import java.util.*;
 
 /**
- * REST resource for managing Sensor entities.
- *
- * Base path: /api/v1/sensors
- *
- * This class provides endpoints for:
- * - Registering new sensors
- * - Retrieving sensor details
- * - Listing sensors with optional filtering
- * - Delegating reading management to a sub-resource
- *
- * Responsibilities:
- * - Acts as the controller layer for sensor-related operations
- * - Enforces validation rules and referential integrity
- * - Delegates persistence to the DataStore
+ * Sensor Resource
+ * Manages /api/v1/sensors endpoint
+ * Implements CRUD operations with reference validation and filtering
  */
 @Path("/sensors")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class SensorResource {
-
-    // Shared in-memory data store (singleton)
-    private final DataStore store = DataStore.getInstance();
+    private final DataStore dataStore = DataStore.getInstance();
 
     /**
-     * Retrieves all sensors or filters them by type.
-     *
-     * Endpoints:
-     * - GET /api/v1/sensors
-     * - GET /api/v1/sensors?type=Temperature
-     *
-     * Query parameter filtering is used instead of path-based filtering
-     * to support flexible and extensible queries.
-     *
-     * Benefits of @QueryParam:
-     * - Supports multiple optional filters
-     * - Avoids excessive endpoint proliferation
-     * - Aligns with RESTful filtering conventions
+     * GET /api/v1/sensors
+     * GET /api/v1/sensors?type=Temperature
+     * Returns all sensors or filtered by type using @QueryParam
      */
     @GET
-    public Response retrieveSensors(@QueryParam("type") String filterType) {
+    public Response getAllSensors(@QueryParam("type") String type) {
+        Collection<Sensor> sensors;
 
-        Collection<Sensor> results;
-
-        // Apply filter if provided
-        if (filterType != null && !filterType.trim().isEmpty()) {
-            results = store.findSensorsByType(filterType);
+        if (type != null && !type.trim().isEmpty()) {
+            sensors = dataStore.getSensorsByType(type);
         } else {
-            results = store.fetchAllSensors();
+            sensors = dataStore.getAllSensors();
         }
 
-        // Build response payload
-        Map<String, Object> body = new HashMap<>();
-        body.put("count", results.size());
-
-        // Include applied filter information if present
-        if (filterType != null) {
-            body.put("appliedFilter", "type=" + filterType);
+        Map<String, Object> response = new HashMap<>();
+        response.put("total", sensors.size());
+        if (type != null) {
+            response.put("filter", "type=" + type);
         }
+        response.put("data", sensors);
 
-        body.put("items", results);
-        body.put("timestamp", System.currentTimeMillis());
-
-        return Response.ok(body).build();
+        return Response.ok(response).build();
     }
 
     /**
-     * Registers a new sensor in the system.
-     *
-     * Endpoint: POST /api/v1/sensors
-     *
-     * Validation rules:
-     * - Sensor ID must be provided and unique
-     * - Associated room must exist (foreign key constraint)
-     *
-     * JAX-RS content negotiation behavior:
-     * - Only application/json is accepted
-     * - Invalid media types (e.g. text/plain, XML) are rejected
-     *   before method execution with HTTP 415
+     * POST /api/v1/sensors
+     * Creates new sensor with roomId validation
+     * VALIDATES: roomId must reference existing room
      */
     @POST
-    public Response registerSensor(Sensor incomingSensor) {
+    public Response createSensor(Sensor sensor) {
+        // Validate sensor ID
+        if (sensor.getId() == null || sensor.getId().trim().isEmpty()) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 400);
+            errorResponse.put("error", "Bad Request");
+            errorResponse.put("message", "Sensor ID is required.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
 
-        // Validate sensor identifier
-        if (incomingSensor.getId() == null || incomingSensor.getId().trim().isEmpty()) {
-            return buildErrorResponse(
-                    400,
-                    "InvalidInput",
-                    "Sensor identifier is required."
-            );
+            return Response
+                    .status(Response.Status.BAD_REQUEST)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        // Validate room association
-        if (incomingSensor.getRoomId() == null || incomingSensor.getRoomId().trim().isEmpty()) {
-            return buildErrorResponse(
-                    400,
-                    "InvalidInput",
-                    "Parent room identifier is required."
-            );
+        // Validate room ID
+        if (sensor.getRoomId() == null || sensor.getRoomId().trim().isEmpty()) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 400);
+            errorResponse.put("error", "Bad Request");
+            errorResponse.put("message", "Room ID is required.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            return Response
+                    .status(Response.Status.BAD_REQUEST)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        // Enforce referential integrity (room must exist)
-        if (!store.roomExists(incomingSensor.getRoomId())) {
-            throw new LinkedResourceNotFoundException("Room", incomingSensor.getRoomId());
+        // CRITICAL: Validate referenced room exists
+        if (!dataStore.roomExists(sensor.getRoomId())) {
+            throw new LinkedResourceNotFoundException("Room", sensor.getRoomId());
         }
 
-        // Prevent duplicate sensor registration
-        if (store.sensorExists(incomingSensor.getId())) {
-            return buildErrorResponse(
-                    409,
-                    "DuplicateResource",
-                    "Sensor '" + incomingSensor.getId() + "' is already registered."
-            );
+        // Check if sensor already exists
+        if (dataStore.sensorExists(sensor.getId())) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 409);
+            errorResponse.put("error", "Conflict");
+            errorResponse.put("message", "Sensor with ID '" + sensor.getId() + "' already exists.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            return Response
+                    .status(Response.Status.CONFLICT)
+                    .entity(errorResponse)
+                    .build();
         }
 
         // Set default status if not provided
-        if (incomingSensor.getStatus() == null || incomingSensor.getStatus().trim().isEmpty()) {
-            incomingSensor.setStatus("ACTIVE");
+        if (sensor.getStatus() == null || sensor.getStatus().trim().isEmpty()) {
+            sensor.setStatus("ACTIVE");
         }
 
-        // Persist sensor
-        Sensor registered = store.saveSensor(incomingSensor);
+        Sensor createdSensor = dataStore.addSensor(sensor);
 
-        // Build success response
-        Map<String, Object> body = new HashMap<>();
-        body.put("message", "Sensor successfully registered in system.");
-        body.put("registeredSensor", registered);
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Sensor created successfully.");
+        response.put("data", createdSensor);
 
         return Response
                 .status(Response.Status.CREATED)
-                .entity(body)
+                .entity(response)
                 .build();
     }
 
     /**
-     * Retrieves details of a specific sensor.
-     *
-     * Endpoint: GET /api/v1/sensors/{sensorId}
-     *
-     * Returns 404 if the sensor does not exist.
+     * GET /api/v1/sensors/{sensorId}
+     * Returns specific sensor
      */
     @GET
     @Path("/{sensorId}")
-    public Response getSensorDetails(@PathParam("sensorId") String sensorId) {
-
-        Sensor sensor = store.retrieveSensor(sensorId);
+    public Response getSensorById(@PathParam("sensorId") String sensorId) {
+        Sensor sensor = dataStore.getSensor(sensorId);
 
         if (sensor == null) {
-            return buildErrorResponse(
-                    404,
-                    "NotFound",
-                    "Sensor '" + sensorId + "' could not be found."
-            );
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 404);
+            errorResponse.put("error", "Not Found");
+            errorResponse.put("message", "Sensor with ID '" + sensorId + "' not found.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            return Response
+                    .status(Response.Status.NOT_FOUND)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        Map<String, Object> body = new HashMap<>();
-        body.put("sensor", sensor);
+        Map<String, Object> response = new HashMap<>();
+        response.put("data", sensor);
 
-        return Response.ok(body).build();
+        return Response.ok(response).build();
     }
 
     /**
-     * Sub-resource locator for sensor readings.
-     *
-     * Endpoint: /api/v1/sensors/{sensorId}/readings
-     *
-     * Design benefits:
-     * - Separates reading logic from sensor management
-     * - Improves modularity and readability
-     * - Enables independent testing of sub-resource
-     * - Keeps controller size manageable as system scales
+     * SUB-RESOURCE LOCATOR PATTERN
+     * Returns SensorReadingResource for handling
+     * /api/v1/sensors/{sensorId}/readings
      */
     @Path("/{sensorId}/readings")
-    public SensorReadingResource accessSensorReadings(@PathParam("sensorId") String sensorId) {
+    public SensorReadingResource getSensorReadings(@PathParam("sensorId") String sensorId) {
         return new SensorReadingResource(sensorId);
-    }
-
-    /**
-     * Builds a standardized error response structure.
-     *
-     * Ensures consistent error formatting across all endpoints.
-     *
-     * @param statusCode HTTP status code
-     * @param errorType logical error identifier
-     * @param detail human-readable message
-     * @return structured HTTP response
-     */
-    private Response buildErrorResponse(int statusCode, String errorType, String detail) {
-
-        Map<String, Object> errorBody = new HashMap<>();
-        errorBody.put("code", statusCode);
-        errorBody.put("error", errorType);
-        errorBody.put("detail", detail);
-        errorBody.put("timestamp", System.currentTimeMillis());
-
-        return Response
-                .status(statusCode)
-                .entity(errorBody)
-                .type("application/json")
-                .build();
     }
 }

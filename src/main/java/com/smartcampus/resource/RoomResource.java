@@ -3,223 +3,150 @@ package com.smartcampus.resource;
 import com.smartcampus.exception.RoomNotEmptyException;
 import com.smartcampus.model.Room;
 import com.smartcampus.repository.DataStore;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import java.net.URI;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * REST resource for managing Room entities.
- *
- * Base path: /api/v1/rooms
- *
- * This class provides endpoints for creating, retrieving, listing,
- * and deleting rooms in the Smart Campus system.
- *
- * Responsibility:
- * - Acts as the API controller layer
- * - Delegates data operations to the DataStore
- * - Enforces validation and business rules at the API boundary
- *
- * The resource follows REST principles and maintains referential integrity
- * between rooms and associated sensors.
+ * Room Resource
+ * Manages /api/v1/rooms endpoint
+ * Implements CRUD operations with safety constraints
  */
 @Path("/rooms")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class RoomResource {
-
-    // Shared in-memory data store (singleton)
-    private final DataStore store = DataStore.getInstance();
+    private final DataStore dataStore = DataStore.getInstance();
 
     /**
-     * Retrieves all rooms in the system.
-     *
-     * Endpoint: GET /api/v1/rooms
-     *
-     * Response includes:
-     * - Total number of rooms
-     * - List of all room entities
-     * - Server-generated timestamp
+     * GET /api/v1/rooms
+     * Returns all rooms
      */
     @GET
-    public Response listAllRooms() {
+    public Response getAllRooms() {
+        Collection<Room> rooms = dataStore.getAllRooms();
 
-        // Fetch all stored rooms
-        Collection<Room> roomCollection = store.fetchAllRooms();
+        Map<String, Object> response = new HashMap<>();
+        response.put("total", rooms.size());
+        response.put("data", rooms);
 
-        // Construct response payload
-        Map<String, Object> body = new HashMap<>();
-        body.put("count", roomCollection.size());
-        body.put("items", roomCollection);
-        body.put("timestamp", System.currentTimeMillis());
-
-        return Response.ok(body).build();
+        return Response.ok(response).build();
     }
 
     /**
-     * Retrieves detailed information for a specific room.
-     *
-     * Endpoint: GET /api/v1/rooms/{roomId}
-     *
-     * Includes:
-     * - Room details
-     * - Computed sensor statistics (total and active sensors)
-     *
-     * Returns 404 if the room does not exist.
+     * GET /api/v1/rooms/{roomId}
+     * Returns specific room with active sensor count
      */
     @GET
     @Path("/{roomId}")
-    public Response getRoomDetails(@PathParam("roomId") String roomId) {
+    public Response getRoomById(@PathParam("roomId") String roomId) {
+        Room room = dataStore.getRoom(roomId);
 
-        // Fetch room by identifier
-        Room room = store.retrieveRoom(roomId);
-
-        // Handle missing resource
         if (room == null) {
-            return buildErrorResponse(
-                    404,
-                    "NotFound",
-                    "Room '" + roomId + "' does not exist in the system."
-            );
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 404);
+            errorResponse.put("error", "Not Found");
+            errorResponse.put("message", "Room with ID '" + roomId + "' not found.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            return Response
+                    .status(Response.Status.NOT_FOUND)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        // Compute sensor-related metadata
-        int activeSensorCount = store.countActiveSensorsInRoom(roomId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("data", room);
+        response.put("activeSensorCount", dataStore.getActiveSensorCount(roomId));
 
-        // Build response payload
-        Map<String, Object> body = new HashMap<>();
-        body.put("room", room);
-
-        // Additional computed metadata
-        body.put("metadata", new HashMap<String, Object>() {{
-            put("activeSensors", activeSensorCount);
-            put("totalSensors", room.getSensorIds().size());
-        }});
-
-        return Response.ok(body).build();
+        return Response.ok(response).build();
     }
 
     /**
-     * Creates a new room.
-     *
-     * Endpoint: POST /api/v1/rooms
-     *
-     * Validation rules:
-     * - Room ID must not be null or empty
-     * - Room ID must be unique
-     *
-     * Returns:
-     * - 201 Created on success
-     * - 400 Bad Request for invalid input
-     * - 409 Conflict if resource already exists
+     * POST /api/v1/rooms
+     * Creates new room
      */
     @POST
-    public Response createRoom(Room incomingRoom) {
+    public Response createRoom(Room room) {
+        if (room.getId() == null || room.getId().trim().isEmpty()) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 400);
+            errorResponse.put("error", "Bad Request");
+            errorResponse.put("message", "Room ID is required.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
 
-        // Validate room ID
-        if (incomingRoom.getId() == null || incomingRoom.getId().trim().isEmpty()) {
-            return buildErrorResponse(
-                    400,
-                    "ValidationError",
-                    "Room ID is mandatory and cannot be blank."
-            );
+            return Response
+                    .status(Response.Status.BAD_REQUEST)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        // Prevent duplicate room creation
-        if (store.roomExists(incomingRoom.getId())) {
-            return buildErrorResponse(
-                    409,
-                    "DuplicateResource",
-                    "Room '" + incomingRoom.getId() + "' already exists."
-            );
+        if (dataStore.getRoom(room.getId()) != null) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 409);
+            errorResponse.put("error", "Conflict");
+            errorResponse.put("message", "Room with ID '" + room.getId() + "' already exists.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            return Response
+                    .status(Response.Status.CONFLICT)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        // Persist new room
-        Room created = store.saveRoom(incomingRoom);
+        Room createdRoom = dataStore.addRoom(room);
 
-        // Build success response
-        Map<String, Object> body = new HashMap<>();
-        body.put("message", "Room provisioned successfully.");
-        body.put("createdRoom", created);
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Room created successfully.");
+        response.put("data", createdRoom);
 
         return Response
                 .status(Response.Status.CREATED)
-                .entity(body)
+                .location(URI.create("/api/v1/rooms/" + createdRoom.getId()))
+                .entity(response)
                 .build();
     }
 
     /**
-     * Deletes a room from the system.
-     *
-     * Endpoint: DELETE /api/v1/rooms/{roomId}
-     *
-     * Business rules:
-     * - A room cannot be deleted if it contains active sensors
-     * - Ensures referential integrity between rooms and sensors
-     *
-     * Behavior:
-     * - 200 OK if deletion is successful
-     * - 404 Not Found if room does not exist
-     * - 409 Conflict (via exception) if room contains active sensors
+     * DELETE /api/v1/rooms/{roomId}
+     * Deletes room with constraint: cannot delete if room has active sensors
      */
     @DELETE
     @Path("/{roomId}")
     public Response deleteRoom(@PathParam("roomId") String roomId) {
+        Room room = dataStore.getRoom(roomId);
 
-        // Retrieve room
-        Room room = store.retrieveRoom(roomId);
-
-        // Handle missing room
         if (room == null) {
-            return buildErrorResponse(
-                    404,
-                    "NotFound",
-                    "Room '" + roomId + "' not found. Nothing to delete."
-            );
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 404);
+            errorResponse.put("error", "Not Found");
+            errorResponse.put("message", "Room with ID '" + roomId + "' not found.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            return Response
+                    .status(Response.Status.NOT_FOUND)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        // Prevent deletion if active sensors exist
-        if (store.roomHasActiveSensors(roomId)) {
+        // CONSTRAINT: Cannot delete room with active sensors
+        if (dataStore.hasActiveSensors(roomId)) {
             throw new RoomNotEmptyException(roomId);
         }
 
-        // Remove room
-        store.removeRoom(roomId);
+        dataStore.deleteRoom(roomId);
 
-        // Build response
-        Map<String, Object> body = new HashMap<>();
-        body.put("message", "Room successfully decommissioned.");
-        body.put("deletedRoom", roomId);
-        body.put("timestamp", System.currentTimeMillis());
-
-        return Response.ok(body).build();
-    }
-
-    /**
-     * Builds a standardized error response structure.
-     *
-     * Ensures consistency across all endpoints for error handling.
-     *
-     * @param statusCode HTTP status code
-     * @param errorType logical error identifier
-     * @param detail human-readable error message
-     * @return structured HTTP response
-     */
-    private Response buildErrorResponse(int statusCode, String errorType, String detail) {
-
-        Map<String, Object> errorBody = new HashMap<>();
-        errorBody.put("code", statusCode);
-        errorBody.put("error", errorType);
-        errorBody.put("detail", detail);
-        errorBody.put("timestamp", System.currentTimeMillis());
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Room deleted successfully.");
+        response.put("roomId", roomId);
 
         return Response
-                .status(statusCode)
-                .entity(errorBody)
-                .type("application/json")
+                .status(Response.Status.OK)
+                .entity(response)
                 .build();
     }
 }

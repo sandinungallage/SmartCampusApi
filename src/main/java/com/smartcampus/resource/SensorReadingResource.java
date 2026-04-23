@@ -1,186 +1,133 @@
 package com.smartcampus.resource;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartcampus.exception.SensorUnavailableException;
 import com.smartcampus.model.Sensor;
 import com.smartcampus.model.SensorReading;
 import com.smartcampus.repository.DataStore;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import java.util.*;
 
 /**
- * Sub-resource for managing sensor readings.
+ * Sensor Reading Resource (Sub-Resource)
+ * Manages /api/v1/sensors/{sensorId}/readings endpoint
+ * Handles historical reading data for a specific sensor
  *
- * Base path: /api/v1/sensors/{sensorId}/readings
- *
- * This class is responsible for handling all operations related to
- * sensor readings for a specific sensor.
- *
- * Design pattern used: Sub-Resource Locator
- * - This resource is not directly instantiated by the framework
- * - It is created by a parent SensorResource
- * - The sensorId is passed as contextual state
- *
- * Responsibilities:
- * - Retrieve historical sensor readings
- * - Record new sensor measurements
- * - Maintain consistency between sensor state and readings
+ * SUB-RESOURCE LOCATOR PATTERN:
+ * - Instantiated by SensorResource.getSensorReadings()
+ * - Receives sensorId context via constructor
+ * - Manages complex nested operations separately from parent
+ * - Benefits: Reduced complexity, separation of concerns, easier testing
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class SensorReadingResource {
+    private final String sensorId;
+    private final DataStore dataStore = DataStore.getInstance();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
-    // Sensor ID provided by the parent resource
-    private final String contextSensorId;
-
-    // Shared in-memory data store
-    private final DataStore store = DataStore.getInstance();
-
-    /**
-     * Constructor used by parent resource to inject sensor context.
-     *
-     * @param sensorId identifier of the target sensor
-     */
     public SensorReadingResource(String sensorId) {
-        this.contextSensorId = sensorId;
+        this.sensorId = sensorId;
     }
 
     /**
-     * Retrieves all historical readings for a sensor.
-     *
-     * Endpoint: GET /api/v1/sensors/{sensorId}/readings
-     *
-     * Response includes:
-     * - Sensor metadata (ID and type)
-     * - Total number of readings
-     * - Full reading history
-     * - Latest recorded reading (if available)
-     *
-     * Returns 404 if the sensor does not exist.
+     * GET /api/v1/sensors/{sensorId}/readings
+     * Returns all readings for a sensor
      */
     @GET
-    public Response getReadingHistory() {
-
-        // Validate sensor existence
-        Sensor sensor = store.retrieveSensor(contextSensorId);
+    public Response getReadings() {
+        Sensor sensor = dataStore.getSensor(sensorId);
 
         if (sensor == null) {
-            return buildErrorResponse(
-                    404,
-                    "NotFound",
-                    "Sensor '" + contextSensorId + "' not found. Cannot retrieve readings."
-            );
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 404);
+            errorResponse.put("error", "Not Found");
+            errorResponse.put("message", "Sensor with ID '" + sensorId + "' not found.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            return Response
+                    .status(Response.Status.NOT_FOUND)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        // Retrieve reading history
-        List<SensorReading> history = store.fetchReadingHistory(contextSensorId);
+        List<SensorReading> readings = dataStore.getReadingsForSensor(sensorId);
 
-        // Build response payload
-        Map<String, Object> body = new HashMap<>();
-        body.put("sensorId", contextSensorId);
-        body.put("sensorType", sensor.getType());
-        body.put("recordCount", history.size());
-        body.put("readings", history);
-
-        // Include latest reading for convenience
-        if (!history.isEmpty()) {
-            SensorReading latest = history.get(history.size() - 1);
-
-            body.put("latestReading", new HashMap<String, Object>() {{
-                put("value", latest.getValue());
-                put("timestamp", latest.getTimestamp());
-            }});
+        Map<String, Object> response = new HashMap<>();
+        response.put("sensorId", sensorId);
+        response.put("sensorType", sensor.getType());
+        response.put("total", readings.size());
+        response.put("data", readings);
+        if (!readings.isEmpty()) {
+            response.put("latestValue", readings.get(readings.size() - 1).getValue());
         }
 
-        return Response.ok(body).build();
+        return Response.ok(response).build();
     }
 
     /**
-     * Records a new reading for the sensor.
+     * POST /api/v1/sensors/{sensorId}/readings
+     * Adds new reading for sensor
      *
-     * Endpoint: POST /api/v1/sensors/{sensorId}/readings
-     *
-     * Business rules:
-     * - Sensor must exist
-     * - Sensor must be in ACTIVE state
-     *
-     * Restrictions:
-     * - MAINTENANCE or OFFLINE sensors cannot accept readings
-     *
-     * Side effects:
-     * - Stores reading in history
-     * - Updates sensor's current value for quick access
+     * CONSTRAINT: Sensor must be ACTIVE (not MAINTENANCE or OFFLINE)
+     * SIDE EFFECT: Updates parent Sensor's currentValue for data consistency
+     * 
+     * NOTE: Manually deserialize JSON to allow exception mappers to catch parsing
+     * errors
+     * This ensures malformed JSON (500 error) vs type mismatch (400 error) are
+     * handled correctly
      */
     @POST
-    public Response recordReading(SensorReading incomingReading) {
+    public Response addReading(String jsonBody) throws com.fasterxml.jackson.core.JsonProcessingException {
+        // Manually deserialize JSON - allows exception mappers to catch parsing errors
+        SensorReading reading = mapper.readValue(jsonBody, SensorReading.class);
 
-        // Validate sensor existence
-        Sensor sensor = store.retrieveSensor(contextSensorId);
+        Sensor sensor = dataStore.getSensor(sensorId);
 
         if (sensor == null) {
-            return buildErrorResponse(
-                    404,
-                    "NotFound",
-                    "Sensor '" + contextSensorId + "' not found. Cannot record reading."
-            );
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", 404);
+            errorResponse.put("error", "Not Found");
+            errorResponse.put("message", "Sensor with ID '" + sensorId + "' not found.");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            return Response
+                    .status(Response.Status.NOT_FOUND)
+                    .entity(errorResponse)
+                    .build();
         }
 
-        // Validate sensor operational state
-        String sensorState = sensor.getStatus();
-        if ("MAINTENANCE".equals(sensorState) || "OFFLINE".equals(sensorState)) {
-            throw new SensorUnavailableException(contextSensorId, sensorState);
+        // CONSTRAINT: Check sensor status - must be ACTIVE
+        if ("MAINTENANCE".equals(sensor.getStatus())) {
+            throw new SensorUnavailableException(sensorId, sensor.getStatus());
         }
 
-        // Persist new reading
-        SensorReading recorded = store.saveReading(contextSensorId, incomingReading);
+        if ("OFFLINE".equals(sensor.getStatus())) {
+            throw new SensorUnavailableException(sensorId, sensor.getStatus());
+        }
 
-        // Update latest sensor value for quick access
-        store.updateSensorCurrentValue(contextSensorId, incomingReading.getValue());
+        // Add reading to history
+        SensorReading addedReading = dataStore.addReading(sensorId, reading);
 
-        // Build response payload
-        Map<String, Object> body = new HashMap<>();
-        body.put("message", "Reading successfully recorded.");
-        body.put("recordedReading", recorded);
+        // SIDE EFFECT: Update sensor's current value for data consistency
+        dataStore.updateSensorCurrentValue(sensorId, reading.getValue());
 
-        // Confirmation of sensor update
-        body.put("sensorUpdated", new HashMap<String, Object>() {{
-            put("sensorId", contextSensorId);
-            put("newCurrentValue", incomingReading.getValue());
-        }});
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Reading recorded successfully.");
+        response.put("sensorId", sensorId);
+        response.put("data", addedReading);
+        response.put("sensorUpdated", new HashMap<String, Object>() {
+            {
+                put("id", sensorId);
+                put("currentValue", reading.getValue());
+            }
+        });
 
         return Response
                 .status(Response.Status.CREATED)
-                .entity(body)
-                .build();
-    }
-
-    /**
-     * Builds a standardized error response.
-     *
-     * Ensures consistent structure across all error responses:
-     * - status code
-     * - error type
-     * - descriptive message
-     * - timestamp for debugging
-     *
-     * @param statusCode HTTP status code
-     * @param errorType logical error identifier
-     * @param detail human-readable error message
-     * @return structured HTTP response
-     */
-    private Response buildErrorResponse(int statusCode, String errorType, String detail) {
-
-        Map<String, Object> errorBody = new HashMap<>();
-        errorBody.put("code", statusCode);
-        errorBody.put("error", errorType);
-        errorBody.put("detail", detail);
-        errorBody.put("timestamp", System.currentTimeMillis());
-
-        return Response
-                .status(statusCode)
-                .entity(errorBody)
-                .type("application/json")
+                .entity(response)
                 .build();
     }
 }

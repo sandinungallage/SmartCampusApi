@@ -1,55 +1,25 @@
 package com.smartcampus.exception;
 
 /**
- * Exception thrown when a referenced resource cannot be found.
- *
- * This typically occurs when a request contains a valid structure,
- * but refers to another entity (such as a foreign key) that does not exist
- * in the system.
- *
- * For example:
- * - Assigning a sensor to a room that does not exist
- * - Referencing an invalid resource ID in a request payload
- *
- * This situation is mapped to HTTP 422 (Unprocessable Entity),
- * as the request is syntactically correct but semantically invalid.
+ * Exception thrown when a referenced resource (e.g., Room referenced by Sensor)
+ * doesn't exist
+ * HTTP 422 Unprocessable Entity
  */
 public class LinkedResourceNotFoundException extends RuntimeException {
+    private String resourceType;
+    private String resourceId;
 
-    // Type of the referenced resource (e.g., "Room", "Sensor")
-    private final String refType;
-
-    // Identifier of the missing resource
-    private final String refId;
-
-    /**
-     * Constructs the exception with details about the missing reference.
-     *
-     * @param refType type of resource being referenced
-     * @param refId   identifier of the resource that could not be found
-     */
-    public LinkedResourceNotFoundException(String refType, String refId) {
-
-        // Build a descriptive error message for debugging and client responses
-        super(String.format(
-                "The referenced %s with identifier '%s' could not be found in the system.",
-                refType, refId));
-
-        this.refType = refType;
-        this.refId = refId;
+    public LinkedResourceNotFoundException(String resourceType, String resourceId) {
+        super("Referenced " + resourceType + " with ID '" + resourceId + "' does not exist.");
+        this.resourceType = resourceType;
+        this.resourceId = resourceId;
     }
 
-    /**
-     * Returns the type of the missing referenced resource.
-     */
-    public String getRefType() {
-        return refType;
+    public String getResourceType() {
+        return resourceType;
     }
 
-    /**
-     * Returns the identifier of the missing referenced resource.
-     */
-    public String getRefId() {
-        return refId;
+    public String getResourceId() {
+        return resourceId;
     }
 }
