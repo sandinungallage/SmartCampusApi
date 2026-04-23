@@ -1,0 +1,529 @@
+{
+  "info": {
+    "_postman_id": "smartcampus-api-collection",
+    "name": "Smart Campus API",
+    "description": "Complete test collection for Smart Campus API demonstration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "PART 1: Discovery & Setup",
+      "item": [
+        {
+          "name": "1.1 GET Discovery Endpoint (HATEOAS)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1"
+              ]
+            },
+            "description": "Root endpoint showing API metadata and HATEOAS links\nExpected: 200 OK with resources map"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "PART 2: Room Management (20 Marks)",
+      "item": [
+        {
+          "name": "2.1 GET All Rooms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/rooms",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "rooms"
+              ]
+            },
+            "description": "Returns comprehensive list of all rooms with sensor associations\nExpected: 200 OK with total count"
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 GET Specific Room by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/rooms/ADMIN-101",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "rooms",
+                "ADMIN-101"
+              ]
+            },
+            "description": "Get detailed metadata for specific room with active sensor count\nExpected: 200 OK"
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 POST Create New Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"ADMIN-101\", \"name\": \"Admin Office\", \"capacity\": 15}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/rooms",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "rooms"
+              ]
+            },
+            "description": "Create new room and store in system\nExpected: 201 Created"
+          },
+          "response": []
+        },
+        {
+          "name": "2.4 DELETE Room with Active Sensors (409 Conflict)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/rooms/LIB-301",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "rooms",
+                "LIB-301"
+              ]
+            },
+            "description": "FAIL TEST: Try to delete room with active sensors\nBusiness Logic Constraint: Should return 409 Conflict\nExpected: 409 with custom error response"
+          },
+          "response": []
+        },
+        {
+          "name": "2.5 DELETE Room without Sensors (200 OK)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/rooms/ADMIN-101",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "rooms",
+                "ADMIN-101"
+              ]
+            },
+            "description": "Successfully delete room without sensors\nDemonstrates IDEMPOTENT operation\nExpected: 200 OK"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "PART 3: Sensor Operations & Filtering (20 Marks)",
+      "item": [
+        {
+          "name": "3.1 GET All Sensors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors"
+              ]
+            },
+            "description": "Returns all sensors in the system\nExpected: 200 OK with all sensors"
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 GET Sensors Filtered by Type (Query Parameter)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors?type=Temperature",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "Temperature"
+                }
+              ]
+            },
+            "description": "@QueryParam filtering demonstration\nReturns only Temperature sensors\nExpected: 200 OK filtered by type"
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 POST Create Sensor with Valid Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"HUMIDITY-001\", \"type\": \"Humidity\", \"status\": \"ACTIVE\", \"currentValue\": 65.0, \"roomId\": \"LAB-102\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors"
+              ]
+            },
+            "description": "Create new sensor with reference validation\nExpected: 201 Created"
+          },
+          "response": []
+        },
+        {
+          "name": "3.4 POST Create Sensor with Invalid Room (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"INVALID-001\", \"type\": \"Temperature\", \"status\": \"ACTIVE\", \"currentValue\": 20.0, \"roomId\": \"NONEXISTENT-ROOM\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors"
+              ]
+            },
+            "description": "FAIL TEST: Try to create sensor with non-existent room\nLinkedResourceNotFoundException thrown\nExpected: 422 Unprocessable Entity with semantic error"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "PART 4: Sub-Resources & Nesting (20 Marks)",
+      "item": [
+        {
+          "name": "4.1 GET Sensor Readings (Sub-Resource)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors/TEMP-001/readings",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "TEMP-001",
+                "readings"
+              ]
+            },
+            "description": "Sub-Resource Locator Pattern: Get historical readings for specific sensor\nDemonstrates nested resource design\nExpected: 200 OK with readings array"
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 POST Add Reading to Sensor (Side Effect)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\": 23.1}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors/TEMP-001/readings",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "TEMP-001",
+                "readings"
+              ]
+            },
+            "description": "Add new reading to sensor\nSIDE EFFECT: Updates parent Sensor currentValue for data consistency\nExpected: 201 Created with updated currentValue"
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 GET Updated Sensor Value",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors/TEMP-001",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "TEMP-001"
+              ]
+            },
+            "description": "Verify that currentValue was updated by reading operation\nDemonstrates data consistency\nExpected: 200 OK with updated currentValue"
+          },
+          "response": []
+        },
+        {
+          "name": "4.4 POST Reading to MAINTENANCE Sensor (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\": 20.5}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors/TEMP-002/readings",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "TEMP-002",
+                "readings"
+              ]
+            },
+            "description": "FAIL TEST: Try to add reading to MAINTENANCE sensor\nState constraint: Only ACTIVE sensors accept readings\nExpected: 403 Forbidden with SensorUnavailableException"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "PART 5: Error Handling & Logging (30 Marks)",
+      "item": [
+        {
+          "name": "5.1 GET Non-existent Sensor (404 Clean JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors/NONEXISTENT-123",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors",
+                "NONEXISTENT-123"
+              ]
+            },
+            "description": "Verify 404 error handling\nNo Java stack traces exposed (GlobalExceptionMapper security)\nExpected: 404 with clean JSON error"
+          },
+          "response": []
+        },
+        {
+          "name": "5.2 POST Invalid JSON (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"TEST\", \"name\": \"Test Room\", \"capacity\": \"INVALID\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/rooms",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "rooms"
+              ]
+            },
+            "description": "Send valid JSON but with invalid field types (capacity is string, not integer)\nExpected: 400 Bad Request with clean JSON error (no stack trace)\nDemonstrates JsonMappingExceptionMapper security"
+          },
+          "response": []
+        },
+        {
+          "name": "5.3 POST Duplicate Sensor ID (409 Conflict)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"TEMP-001\", \"type\": \"Temperature\", \"status\": \"ACTIVE\", \"currentValue\": 99.0, \"roomId\": \"LAB-102\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sensors"
+              ]
+            },
+            "description": "Try to create sensor with duplicate ID\nExpected: 409 Conflict"
+          },
+          "response": []
+        },
+        {
+          "name": "5.4 POST Malformed JSON (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\": 20.5"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/sensors/TEMP-001/readings",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "sensors", "TEMP-001", "readings"]
+            },
+            "description": "Send malformed JSON (missing closing brace)\nExpected: 400 Bad Request with clean JSON error (no stack trace)\nClient-side error - invalid JSON format"
+          },
+          "response": []
+        },
+        {
+          "name": "5.5 GET Trigger Internal Server Error (500 Clean JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/test/error",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "test", "error"]
+            },
+            "description": "Trigger a server-side failure (RuntimeException)\nExpected: 500 Internal Server Error with clean JSON\nDemonstrates GlobalExceptionMapper security - no stack trace exposed"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
