@@ -24,9 +24,10 @@ This RESTful API is designed to manage university campus infrastructure, focusin
 ## **Setup & Build Instructions**
 
 ### **Prerequisites**
-- Java 11 or higher
+- Java 8 or higher
 - Maven 3.6.0 or higher
 - Git (for version control)
+- Apache Tomcat 9 (for deployment)
 
 ### **1. Clone the Repository**
 ```bash
@@ -41,7 +42,7 @@ cd SmartCampusAPI
 ### **2. Build the Project**
 ```powershell
 # Clean and build with Maven
-mvn clean install
+mvn clean package
 
 # Expected output: BUILD SUCCESS
 ```
@@ -541,28 +542,53 @@ Test each error condition:
 ```
 SmartCampusAPI/
 ├── src/main/java/com/smartcampus/
-│   ├── SmartCampusApplication.java        # JAX-RS application entry point
+│   ├── SmartCampusApplication.java        
+│   │   # JAX-RS application entry point (registers resources & config)
+│   │
 │   ├── config/
-│   │   └── JacksonConfiguration.java      # JSON serialization configuration
+│   │   └── JacksonConfiguration.java      
+│   │       # Configures JSON serialization/deserialization using Jackson
+│   │
 │   ├── exception/
-│   │   ├── RoomNotEmptyException.java
+│   │   ├── RoomNotEmptyException.java     
+│   │   │   # Thrown when attempting to delete a room that still has sensors
 │   │   ├── SensorUnavailableException.java
-│   │   └── GlobalExceptionMapper.java
+│   │   │   # Thrown when a sensor is not found or inactive
+│   │   └── GlobalExceptionMapper.java     
+│   │       # Converts exceptions into proper HTTP responses
+│   │
 │   ├── filter/
-│   │   └── LoggingFilter.java             # Request/response logging
+│   │   └── LoggingFilter.java             
+│   │       # Logs all incoming requests and outgoing responses (cross-cutting concern)
+│   │
 │   ├── model/
-│   │   ├── Room.java
-│   │   ├── Sensor.java
-│   │   └── SensorReading.java
+│   │   ├── Room.java                      
+│   │   │   # Represents a physical room in the campus
+│   │   ├── Sensor.java                    
+│   │   │   # Represents a sensor device (temperature, humidity, etc.)
+│   │   └── SensorReading.java             
+│   │       # Represents sensor data readings (timestamp, value)
+│   │
 │   ├── repository/
-│   │   └── DataStore.java                 # In-memory data store
+│   │   └── DataStore.java                 
+│   │       # In-memory data storage (simulates a database using collections)
+│   │
 │   └── resource/
-│       ├── RoomResource.java
-│       ├── SensorResource.java
-│       └── SensorReadingResource.java
-├── src/main/webapp/WEB-INF/web.xml        # Servlet configuration
-├── pom.xml                                # Maven dependencies
-└── README.md                              # Project documentation
+│       ├── RoomResource.java              
+│       │   # REST endpoints for room management (/rooms)
+│       ├── SensorResource.java            
+│       │   # REST endpoints for sensor management (/sensors)
+│       └── SensorReadingResource.java     
+│           # REST endpoints for sensor readings (/readings)
+│
+├── src/main/webapp/WEB-INF/web.xml        
+│   # Servlet configuration for Apache Tomcat 9 (Jersey setup using javax.ws.rs)
+│
+├── pom.xml                                
+│   # Maven configuration (Jersey 2.x, javax.ws.rs, Tomcat 9 compatible dependencies)
+│
+└── README.md                              
+    # Project documentation (setup, API usage, endpoints)
 ```
 
 ---
@@ -570,12 +596,12 @@ SmartCampusAPI/
 ## **Technologies Used**
 
 - **Framework:** JAX-RS (Jakarta REST API)
-- **Implementation:** Jersey 3.1.1
-- **JSON Serialization:** Jackson 2.15.2
+- **Implementation:** Jersey 2.35
+- **JSON Serialization:** Jackson 2.12.5
 - **Dependency Injection:** HK2
-- **Server:** Jetty 11.0.16 (embedded)
-- **Build Tool:** Maven 3.11.0
-- **Language:** Java 11
+- **Server:** Apache Tomcat 9
+- **Build Tool:** Maven 3.6.3
+- **Language:** Java 8+
 - **Data Storage:** In-memory ConcurrentHashMap (no database)
 
 ---
@@ -599,7 +625,7 @@ SmartCampusAPI/
 
 ## **Support & Questions**
 
-For any questions or issues, please refer to the documentation or contact the course instructor.
+For any questions or issues, please refer to the documentation
 
 ---
 
