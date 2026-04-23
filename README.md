@@ -2,8 +2,8 @@
 
 **Coursework Assignment:** Client-Server Architectures (5COSC022W)  
 **Due Date:** 24th April 2026, 13:00  
-**Technology Stack:** JAX-RS with Jersey Framework  
-**Framework Version:** Jakarta REST API 3.1.0 with Jersey 3.1.1  
+**Technology Stack:** Apache Tomcat 9 | Java 8+ |  
+**Framework Version:** JAX-RS 2.1 (javax.ws.rs) with Jersey 2.35  
 
 ---
 
@@ -49,10 +49,19 @@ mvn clean package
 
 ### **3. Run the Server**
 ```powershell
-# Start Jetty embedded server on port 8080
-mvn jetty:run
+# Locate the generated WAR file
+target/SmartCampusAPI.war
 
-# Server will be available at: http://localhost:8080/api/v1
+# Copy the WAR file to Tomcat webapps directory
+<tomcat-installation-folder>/webapps/
+
+# Start Tomcat server
+<tomcat-installation-folder>/bin/startup.sh   # Mac/Linux
+<tomcat-installation-folder>\bin\startup.bat  # Windows
+
+# Server will be available at:
+http://localhost:8080/SmartCampusAPI/api/v1
+
 ```
 
 ### **4. Verify Server is Running**
@@ -516,7 +525,7 @@ public class LoggingFilter implements ContainerRequestFilter {
 
 ## **Testing Instructions**
 
-### **Run Automated Tests**
+### **Testing Instructions**
 ```Manual Testing
 Use the provided curl commands to manually test the API endpoints
 ```
@@ -608,7 +617,7 @@ SmartCampusAPI/
 
 ## **Compliance Notes**
 
-✅ **Coursework Requirements Met:**
+ **Coursework Requirements Met:**
 - JAX-RS only (no Spring Boot)
 - No database (HashMap/ArrayList used)
 - Public GitHub repository
@@ -631,4 +640,4 @@ For any questions or issues, please refer to the documentation
 
 **Last Updated:** April 2026  
 **API Version:** 1.0.0  
-**Status:** Production Ready
+**Status:** Coursework Prototype
