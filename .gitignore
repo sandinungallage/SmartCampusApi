@@ -1,0 +1,71 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.backup
+release.properties
+dependency-reduced-pom.xml
+.flattened-pom.xml
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+*.pid
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+*.pydevproject
+
+# Visual Studio Code
+.vscode/
+.history/
+
+# OS
+.DS_Store
+Thumbs.db
+.DS_Store?
+
+# Build outputs
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Compiled Python
+__pycache__/
+*.py[cod]
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+*~
+.~*
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
